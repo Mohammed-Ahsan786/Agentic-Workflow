@@ -1,0 +1,442 @@
+{
+  "name": "Knowledge Base: Ingest Documents",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Knowledge Base: Ingest Documents (Google Drive)\n\nTwo ways to add documents to the knowledge base:\n\n**1. Bulk Load (Manual)**\nClick \"Test Workflow\" on the \"Bulk Load: Run Manually\" trigger to index all files in your configured Google Drive folder at once.\n\n**2. Auto-Sync (Automatic)**\nThe Google Drive trigger polls hourly for new/updated files in the watched folder and re-indexes them.\n\n**Supported formats:** PDF, DOCX, TXT, CSV, Google Docs (exported as text)\n\n**Setup steps:**\n1. Connect your Google Drive OAuth2 credential\n2. In \"List Knowledge Base Folder\", select the folder that contains your documents\n3. In \"New File Added to Google Drive\", select the same folder to watch\n\n**Vector store key:** company_knowledge_base — used by the companion \"Internal Document Q&A Chat\" workflow.\n\nRe-running bulk load on the same files will add duplicate chunks. To rebuild from scratch, enable \"Clear Store\" on the insert nodes."
+      },
+      "id": "a10a1345-86b8-4e26-9d2e-225a8595f5ca",
+      "name": "Sticky Note a10a1345",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -864,
+        1248
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "9905489a-0c17-41f2-abf0-fd311a702b49",
+      "name": "Bulk Load: Run Manually",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "searchMethod": "query",
+        "returnAll": true,
+        "filter": {
+          "folderId": {
+            "__rl": true,
+            "mode": "url",
+            "value": "https://drive.google.com/drive/folders/1mi_4BSHlaq-p9liGACG8o4ElNbyeuKEJ"
+          },
+          "whatToSearch": "files",
+          "includeTrashed": false
+        },
+        "options": {}
+      },
+      "id": "3174b560-fc71-40e4-b7fc-b6f3205511d6",
+      "name": "List Knowledge Base Folder",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        224,
+        208
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "an6Tw8up2UAocV1w",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.id }}"
+        },
+        "options": {
+          "binaryPropertyName": "data"
+        }
+      },
+      "id": "ded62ad2-f3d5-4cd7-ba16-a195d82bad54",
+      "name": "Download File (Bulk)",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        448,
+        208
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "an6Tw8up2UAocV1w",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "tableName": {
+          "__rl": true,
+          "mode": "id",
+          "value": "documents"
+        },
+        "options": {}
+      },
+      "id": "3bb78997-8f35-45a2-9a43-6426a3ac45ad",
+      "name": "Store in Knowledge Base (Bulk)",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1.3,
+      "position": [
+        672,
+        0
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "fDhdOUDQMAVaMzgI",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "01c1d6c8-22be-4f69-8e93-92e4ea3a7c2e",
+      "name": "OpenAI Embeddings (Bulk)",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        688,
+        224
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": null,
+          "name": "n8n Connect",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "dataType": "binary",
+        "textSplittingMode": "custom",
+        "options": {}
+      },
+      "id": "4b6fe1ee-e7e2-4999-92b4-208125841263",
+      "name": "Document Loader (Bulk)",
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [
+        816,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "chunkOverlap": 200,
+        "options": {}
+      },
+      "id": "12c72ac1-4264-4510-a140-3956a6e96b3d",
+      "name": "Text Splitter (Bulk)",
+      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [
+        816,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyHour"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "value": "https://drive.google.com/drive/u/0/folders/1mi_4BSHlaq-p9liGACG8o4ElNbyeuKEJ",
+          "mode": "url"
+        },
+        "event": "fileUpdated",
+        "options": {}
+      },
+      "id": "e84f51e3-dada-4c8d-9f30-82233af9d9e6",
+      "name": "New File Added to Google Drive",
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        848
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "an6Tw8up2UAocV1w",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.id }}"
+        },
+        "options": {
+          "binaryPropertyName": "data"
+        }
+      },
+      "id": "c6bead40-2053-4197-921d-e2e54c312030",
+      "name": "Download File (Auto-Sync)",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        224,
+        848
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "an6Tw8up2UAocV1w",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "tableName": {
+          "__rl": true,
+          "mode": "id",
+          "value": "documents"
+        },
+        "options": {}
+      },
+      "id": "02b73f67-f760-42f5-8be2-d528bf72a4a6",
+      "name": "Store in Knowledge Base (Auto-Sync)",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1.3,
+      "position": [
+        448,
+        848
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "fDhdOUDQMAVaMzgI",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "e59828ed-5f1f-4876-b2ee-2e211a4c85af",
+      "name": "OpenAI Embeddings (Sync)",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        464,
+        1072
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": null,
+          "name": "n8n Connect",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "dataType": "binary",
+        "textSplittingMode": "custom",
+        "options": {}
+      },
+      "id": "622b12d2-9e3a-4efb-8647-26c182c4e79f",
+      "name": "Document Loader (Sync)",
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [
+        592,
+        1072
+      ]
+    },
+    {
+      "parameters": {
+        "chunkOverlap": 200,
+        "options": {}
+      },
+      "id": "aa295d0e-5d26-465f-a4d6-bcd58f95ee36",
+      "name": "Text Splitter (Sync)",
+      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [
+        592,
+        1280
+      ]
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        480,
+        288
+      ],
+      "typeVersion": 1,
+      "id": "86a9a457-20b4-4aca-a742-b90508ccc42d",
+      "name": "Sticky Note"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Bulk Load: Run Manually": {
+      "main": [
+        [
+          {
+            "node": "List Knowledge Base Folder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Knowledge Base Folder": {
+      "main": [
+        [
+          {
+            "node": "Download File (Bulk)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download File (Bulk)": {
+      "main": [
+        [
+          {
+            "node": "Store in Knowledge Base (Bulk)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Embeddings (Bulk)": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Store in Knowledge Base (Bulk)",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Document Loader (Bulk)": {
+      "ai_document": [
+        [
+          {
+            "node": "Store in Knowledge Base (Bulk)",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Text Splitter (Bulk)": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Document Loader (Bulk)",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "New File Added to Google Drive": {
+      "main": [
+        [
+          {
+            "node": "Download File (Auto-Sync)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download File (Auto-Sync)": {
+      "main": [
+        [
+          {
+            "node": "Store in Knowledge Base (Auto-Sync)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Embeddings (Sync)": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Store in Knowledge Base (Auto-Sync)",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Document Loader (Sync)": {
+      "ai_document": [
+        [
+          {
+            "node": "Store in Knowledge Base (Auto-Sync)",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Text Splitter (Sync)": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Document Loader (Sync)",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "5b3eb264-f496-4c5d-a8db-effb2defa1fe",
+  "meta": {
+    "instanceId": "77fc123742e7b6f4595115f5438a087bdac1dd18d5af241d4dc6ead3cb03d778"
+  },
+  "nodeGroups": [],
+  "id": "mtJfdcqdg7ujELx2",
+  "tags": []
+}
